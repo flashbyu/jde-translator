@@ -469,7 +469,7 @@ function StepCard({ step }) {
 
 const DEFAULT_API_URL = import.meta.env.VITE_AIS_API_URL || "http://localhost:8000";
 
-function AISConnectionPanel({ creds, setCreds, connStatus, onTest, onRun, hasResult, runState }) {
+function AISConnectionPanel({ creds, setCreds, connStatus, onTest }) {
   const [showPanel, setShowPanel] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -540,22 +540,7 @@ function AISConnectionPanel({ creds, setCreds, connStatus, onTest, onRun, hasRes
             >
               {connStatus.state === "testing" ? "Testing…" : "Test Connection"}
             </button>
-            {hasResult && (
-              <button
-                onClick={onRun}
-                disabled={connStatus.state !== "connected" || runState.running}
-                style={{ flex: 1, background: connStatus.state === "connected" && !runState.running ? "#14532d" : "#1e293b", color: connStatus.state === "connected" && !runState.running ? "#34d399" : "#64748b", border: `1px solid ${connStatus.state === "connected" ? "#16a34a40" : "#334155"}`, borderRadius: 5, padding: "6px 0", fontSize: 12, fontWeight: 600, cursor: connStatus.state === "connected" && !runState.running ? "pointer" : "default", fontFamily: "inherit" }}
-              >
-                {runState.running ? "Running…" : "▶ Run on JDE"}
-              </button>
-            )}
           </div>
-          {runState.result && (
-            <div style={{ background: runState.error ? "#2d0d15" : "#0d2d1a", border: `1px solid ${runState.error ? "#991b1b" : "#166534"}`, borderRadius: 5, padding: "8px 10px", maxHeight: 160, overflow: "auto" }}>
-              <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: runState.error ? "#f87171" : "#34d399", marginBottom: 4 }}>{runState.error ? "Error" : "Result"}</div>
-              <pre style={{ fontSize: 11, color: runState.error ? "#fca5a5" : "#6ee7b7", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre-wrap", margin: 0 }}>{typeof runState.result === "string" ? runState.result : JSON.stringify(runState.result, null, 2)}</pre>
-            </div>
-          )}
           <div style={{ fontSize: 10, color: "#334155", lineHeight: 1.5 }}>
             Credentials are not stored. Start the Python backend with <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#475569" }}>uvicorn main:app</span> in <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#475569" }}>/server</span>.
           </div>
@@ -590,8 +575,6 @@ export default function App() {
     api_url: DEFAULT_API_URL,
   });
   const [connStatus, setConnStatus] = useState({ state: "idle", message: "" });
-  const [runState, setRunState] = useState({ running: false, result: null, error: false });
-
   const handleFile = async (file) => {
     if (!file) return;
     setFileName(file.name);
@@ -611,14 +594,12 @@ export default function App() {
       if (!parsed) { setError("Could not parse document."); return; }
       setResult(parsed);
       setRawMarkdown(toMarkdown(parsed));
-      setRunState({ running: false, result: null, error: false });
     } catch (err) { setError(`Translation error: ${err.message}`); }
   };
 
   const handleClear = () => {
     setInputText(""); setFileName(""); setResult(null); setRawMarkdown("");
     setError(null); setShowRaw(false);
-    setRunState({ running: false, result: null, error: false });
   };
 
   const handleCopy = async () => {
@@ -649,36 +630,6 @@ export default function App() {
       setConnStatus({ state: "connected", message: data.message || "Connected" });
     } catch (e) {
       setConnStatus({ state: "error", message: e.message });
-    }
-  };
-
-  // AIS: run orchestration
-  const handleRunOnJDE = async () => {
-    if (!result) return;
-    setRunState({ running: true, result: null, error: false });
-    try {
-      const res = await fetch(`${creds.api_url}/api/run-orchestration`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          credentials: {
-            base_url: creds.base_url,
-            username: creds.username,
-            password: creds.password,
-            timeout: creds.timeout,
-            verify_ssl: creds.verify_ssl,
-          },
-          orchestration_name: result.orchName,
-          inputs: Object.fromEntries(
-            result.inputs.map((inp, i) => [`input_${i + 1}`, inp])
-          ),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Orchestration failed");
-      setRunState({ running: false, result: data.result, error: false });
-    } catch (e) {
-      setRunState({ running: false, result: e.message, error: true });
     }
   };
 
@@ -721,29 +672,15 @@ export default function App() {
             setCreds={setCreds}
             connStatus={connStatus}
             onTest={handleTestConnection}
-            onRun={handleRunOnJDE}
-            hasResult={hasOutput}
-            runState={runState}
           />
         </div>
 
         {hasOutput && (
           <div style={{ overflow: "auto", padding: "16px 24px" }}>
             <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "16px 20px", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ ...sectionLabel, marginBottom: 4 }}>Orchestration</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>{result.orchName}</div>
-                </div>
-                {connStatus.state === "connected" && (
-                  <button
-                    onClick={handleRunOnJDE}
-                    disabled={runState.running}
-                    style={{ background: runState.running ? "#1e293b" : "#14532d", color: runState.running ? "#64748b" : "#34d399", border: "1px solid #16a34a40", borderRadius: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: runState.running ? "default" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
-                  >
-                    {runState.running ? "⏳ Running…" : "▶ Run on JDE"}
-                  </button>
-                )}
+              <div>
+                <div style={{ ...sectionLabel, marginBottom: 4 }}>Orchestration</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>{result.orchName}</div>
               </div>
               <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
                 {[{ l: "Steps", v: result.steps.length, c: "#3b82f6" }, { l: "Inputs", v: result.inputs.length, c: "#10b981" }, { l: "Variables", v: result.variables.length, c: "#a78bfa" }, { l: "Outputs", v: result.outputs.length, c: "#f59e0b" }].map((s) => (
@@ -755,17 +692,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Run result banner */}
-            {runState.result && (
-              <div style={{ background: runState.error ? "#2d0d15" : "#0d1f2d", border: `1px solid ${runState.error ? "#991b1b" : "#1d4ed8"}`, borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: runState.error ? "#f87171" : "#60a5fa", marginBottom: 6 }}>
-                  {runState.error ? "⚠ AIS Error" : "✓ AIS Response"}
-                </div>
-                <pre style={{ fontSize: 11, color: runState.error ? "#fca5a5" : "#93c5fd", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre-wrap", margin: 0, maxHeight: 200, overflow: "auto" }}>
-                  {typeof runState.result === "string" ? runState.result : JSON.stringify(runState.result, null, 2)}
-                </pre>
-              </div>
-            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
               <BulletCard title="Inputs" color="#10b981" items={result.inputs} />
