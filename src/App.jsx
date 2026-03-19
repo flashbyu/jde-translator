@@ -464,6 +464,108 @@ function StepCard({ step }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   AIS CONNECTION PANEL
+   ═══════════════════════════════════════════════════════════ */
+
+const DEFAULT_API_URL = import.meta.env.VITE_AIS_API_URL || "http://localhost:8000";
+
+function AISConnectionPanel({ creds, setCreds, connStatus, onTest, onRun, hasResult, runState }) {
+  const [showPanel, setShowPanel] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const statusColor = { idle: "#64748b", testing: "#f59e0b", connected: "#10b981", error: "#ef4444" }[connStatus.state];
+  const statusDot = connStatus.state !== "idle";
+
+  const inputStyle = {
+    width: "100%", background: "#0f172a", border: "1px solid #1e293b", borderRadius: 5,
+    color: "#e2e8f0", fontSize: 12, padding: "6px 10px", fontFamily: "'JetBrains Mono', monospace",
+    outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: "#475569", marginBottom: 3, display: "block" };
+
+  return (
+    <div style={{ borderTop: "1px solid #1e293b", flexShrink: 0 }}>
+      {/* Toggle bar */}
+      <div
+        onClick={() => setShowPanel(p => !p)}
+        style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none", background: "#0c1526" }}
+      >
+        <span style={{ fontSize: 10, color: statusColor, lineHeight: 1 }}>{statusDot ? "●" : "○"}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", flex: 1 }}>AIS Connection</span>
+        {connStatus.state === "connected" && (
+          <span style={{ fontSize: 10, color: "#10b981", background: "#10b98115", border: "1px solid #10b98130", borderRadius: 3, padding: "1px 6px" }}>
+            {connStatus.message}
+          </span>
+        )}
+        {connStatus.state === "error" && (
+          <span style={{ fontSize: 10, color: "#ef4444", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{connStatus.message}</span>
+        )}
+        <span style={{ fontSize: 10, color: "#334155" }}>{showPanel ? "▲" : "▼"}</span>
+      </div>
+
+      {showPanel && (
+        <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: 8, background: "#080f1e" }}>
+          <div>
+            <label style={labelStyle}>AIS Base URL</label>
+            <input style={inputStyle} value={creds.base_url} onChange={e => setCreds(p => ({ ...p, base_url: e.target.value }))} placeholder="https://your-jde-server/jderest" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div>
+              <label style={labelStyle}>Username</label>
+              <input style={inputStyle} value={creds.username} onChange={e => setCreds(p => ({ ...p, username: e.target.value }))} placeholder="JDEUSER" />
+            </div>
+            <div>
+              <label style={labelStyle}>Password</label>
+              <div style={{ position: "relative" }}>
+                <input style={{ ...inputStyle, paddingRight: 28 }} type={showPassword ? "text" : "password"} value={creds.password} onChange={e => setCreds(p => ({ ...p, password: e.target.value }))} placeholder="••••••••" />
+                <button onClick={() => setShowPassword(s => !s)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 11, padding: 0 }}>{showPassword ? "hide" : "show"}</button>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div>
+              <label style={labelStyle}>Timeout (s)</label>
+              <input style={inputStyle} type="number" value={creds.timeout} onChange={e => setCreds(p => ({ ...p, timeout: parseInt(e.target.value) || 30 }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>API Server URL</label>
+              <input style={inputStyle} value={creds.api_url} onChange={e => setCreds(p => ({ ...p, api_url: e.target.value }))} placeholder="http://localhost:8000" />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+            <button
+              onClick={onTest}
+              disabled={connStatus.state === "testing" || !creds.base_url || !creds.username || !creds.password}
+              style={{ flex: 1, background: connStatus.state === "testing" ? "#1e293b" : "#1e3a5f", color: connStatus.state === "testing" ? "#64748b" : "#60a5fa", border: "1px solid #2563eb40", borderRadius: 5, padding: "6px 0", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {connStatus.state === "testing" ? "Testing…" : "Test Connection"}
+            </button>
+            {hasResult && (
+              <button
+                onClick={onRun}
+                disabled={connStatus.state !== "connected" || runState.running}
+                style={{ flex: 1, background: connStatus.state === "connected" && !runState.running ? "#14532d" : "#1e293b", color: connStatus.state === "connected" && !runState.running ? "#34d399" : "#64748b", border: `1px solid ${connStatus.state === "connected" ? "#16a34a40" : "#334155"}`, borderRadius: 5, padding: "6px 0", fontSize: 12, fontWeight: 600, cursor: connStatus.state === "connected" && !runState.running ? "pointer" : "default", fontFamily: "inherit" }}
+              >
+                {runState.running ? "Running…" : "▶ Run on JDE"}
+              </button>
+            )}
+          </div>
+          {runState.result && (
+            <div style={{ background: runState.error ? "#2d0d15" : "#0d2d1a", border: `1px solid ${runState.error ? "#991b1b" : "#166534"}`, borderRadius: 5, padding: "8px 10px", maxHeight: 160, overflow: "auto" }}>
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: runState.error ? "#f87171" : "#34d399", marginBottom: 4 }}>{runState.error ? "Error" : "Result"}</div>
+              <pre style={{ fontSize: 11, color: runState.error ? "#fca5a5" : "#6ee7b7", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre-wrap", margin: 0 }}>{typeof runState.result === "string" ? runState.result : JSON.stringify(runState.result, null, 2)}</pre>
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: "#334155", lineHeight: 1.5 }}>
+            Credentials are not stored. Start the Python backend with <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#475569" }}>uvicorn main:app</span> in <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#475569" }}>/server</span>.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════ */
 
@@ -477,6 +579,18 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const fileInputRef = useRef(null);
+
+  // AIS connection state
+  const [creds, setCreds] = useState({
+    base_url: "",
+    username: "",
+    password: "",
+    timeout: 30,
+    verify_ssl: true,
+    api_url: DEFAULT_API_URL,
+  });
+  const [connStatus, setConnStatus] = useState({ state: "idle", message: "" });
+  const [runState, setRunState] = useState({ running: false, result: null, error: false });
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -497,15 +611,75 @@ export default function App() {
       if (!parsed) { setError("Could not parse document."); return; }
       setResult(parsed);
       setRawMarkdown(toMarkdown(parsed));
+      setRunState({ running: false, result: null, error: false });
     } catch (err) { setError(`Translation error: ${err.message}`); }
   };
 
-  const handleClear = () => { setInputText(""); setFileName(""); setResult(null); setRawMarkdown(""); setError(null); setShowRaw(false); };
+  const handleClear = () => {
+    setInputText(""); setFileName(""); setResult(null); setRawMarkdown("");
+    setError(null); setShowRaw(false);
+    setRunState({ running: false, result: null, error: false });
+  };
 
   const handleCopy = async () => {
     if (!rawMarkdown) return;
     try { await navigator.clipboard.writeText(rawMarkdown); setCopyState("copied"); } catch { setCopyState("failed"); }
     setTimeout(() => setCopyState("idle"), 2000);
+  };
+
+  // AIS: test connection
+  const handleTestConnection = async () => {
+    setConnStatus({ state: "testing", message: "Connecting…" });
+    try {
+      const res = await fetch(`${creds.api_url}/api/test-connection`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credentials: {
+            base_url: creds.base_url,
+            username: creds.username,
+            password: creds.password,
+            timeout: creds.timeout,
+            verify_ssl: creds.verify_ssl,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connection failed");
+      setConnStatus({ state: "connected", message: data.message || "Connected" });
+    } catch (e) {
+      setConnStatus({ state: "error", message: e.message });
+    }
+  };
+
+  // AIS: run orchestration
+  const handleRunOnJDE = async () => {
+    if (!result) return;
+    setRunState({ running: true, result: null, error: false });
+    try {
+      const res = await fetch(`${creds.api_url}/api/run-orchestration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credentials: {
+            base_url: creds.base_url,
+            username: creds.username,
+            password: creds.password,
+            timeout: creds.timeout,
+            verify_ssl: creds.verify_ssl,
+          },
+          orchestration_name: result.orchName,
+          inputs: Object.fromEntries(
+            result.inputs.map((inp, i) => [`input_${i + 1}`, inp])
+          ),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Orchestration failed");
+      setRunState({ running: false, result: data.result, error: false });
+    } catch (e) {
+      setRunState({ running: false, result: e.message, error: true });
+    }
   };
 
   const hasOutput = !!result;
@@ -528,6 +702,7 @@ export default function App() {
       {error && <div style={{ margin: "12px 24px 0", padding: "10px 16px", background: "#2d0d15", border: "1px solid #991b1b", borderRadius: 6, color: "#fca5a5", fontSize: 13 }}>{error}</div>}
 
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: hasOutput ? "380px 1fr" : "1fr", gap: 0, overflow: "hidden", minHeight: 0 }}>
+        {/* Left panel: input + AIS connector */}
         <div style={{ borderRight: hasOutput ? "1px solid #1e293b" : "none", display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: hasOutput ? 380 : 720, margin: hasOutput ? 0 : "0 auto", width: "100%" }}>
           <div style={{ padding: "12px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={sectionLabel}>Input</span>
@@ -538,14 +713,38 @@ export default function App() {
             <span>or drop .docx / .txt here</span>
             <input ref={fileInputRef} type="file" accept=".txt,.docx,.md,.xml" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ""; }} style={{ display: "none" }} />
           </div>
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Paste design spec, ER text, or upload a file..." spellCheck={false} style={{ flex: 1, margin: "8px 12px 12px", padding: 12, background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, color: "#cbd5e1", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6, resize: "none", outline: "none", minHeight: 200 }} />
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Paste design spec, ER text, or upload a file..." spellCheck={false} style={{ flex: 1, margin: "8px 12px 0", padding: 12, background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, color: "#cbd5e1", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6, resize: "none", outline: "none", minHeight: 200 }} />
+
+          {/* AIS Panel always visible at bottom of left column */}
+          <AISConnectionPanel
+            creds={creds}
+            setCreds={setCreds}
+            connStatus={connStatus}
+            onTest={handleTestConnection}
+            onRun={handleRunOnJDE}
+            hasResult={hasOutput}
+            runState={runState}
+          />
         </div>
 
         {hasOutput && (
           <div style={{ overflow: "auto", padding: "16px 24px" }}>
             <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "16px 20px", marginBottom: 16 }}>
-              <div style={{ ...sectionLabel, marginBottom: 4 }}>Orchestration</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>{result.orchName}</div>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ ...sectionLabel, marginBottom: 4 }}>Orchestration</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>{result.orchName}</div>
+                </div>
+                {connStatus.state === "connected" && (
+                  <button
+                    onClick={handleRunOnJDE}
+                    disabled={runState.running}
+                    style={{ background: runState.running ? "#1e293b" : "#14532d", color: runState.running ? "#64748b" : "#34d399", border: "1px solid #16a34a40", borderRadius: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: runState.running ? "default" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                  >
+                    {runState.running ? "⏳ Running…" : "▶ Run on JDE"}
+                  </button>
+                )}
+              </div>
               <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
                 {[{ l: "Steps", v: result.steps.length, c: "#3b82f6" }, { l: "Inputs", v: result.inputs.length, c: "#10b981" }, { l: "Variables", v: result.variables.length, c: "#a78bfa" }, { l: "Outputs", v: result.outputs.length, c: "#f59e0b" }].map((s) => (
                   <div key={s.l} style={{ background: s.c + "12", border: `1px solid ${s.c}30`, borderRadius: 6, padding: "6px 12px", display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -555,6 +754,19 @@ export default function App() {
                 ))}
               </div>
             </div>
+
+            {/* Run result banner */}
+            {runState.result && (
+              <div style={{ background: runState.error ? "#2d0d15" : "#0d1f2d", border: `1px solid ${runState.error ? "#991b1b" : "#1d4ed8"}`, borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: runState.error ? "#f87171" : "#60a5fa", marginBottom: 6 }}>
+                  {runState.error ? "⚠ AIS Error" : "✓ AIS Response"}
+                </div>
+                <pre style={{ fontSize: 11, color: runState.error ? "#fca5a5" : "#93c5fd", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre-wrap", margin: 0, maxHeight: 200, overflow: "auto" }}>
+                  {typeof runState.result === "string" ? runState.result : JSON.stringify(runState.result, null, 2)}
+                </pre>
+              </div>
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
               <BulletCard title="Inputs" color="#10b981" items={result.inputs} />
               <BulletCard title="Variables" color="#a78bfa" items={result.variables} maxHeight={260} />
